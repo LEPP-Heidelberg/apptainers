@@ -1,0 +1,110 @@
+Bootstrap: docker
+From: ubuntu:{{UBUNTU_VERSION}}
+
+%files
+    # files to copy into container
+    root-{{ROOT_BRANCH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst /tmp-root/root-{{ROOT_BRANCH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst
+
+%post
+    # write login script for Geant 4 to set up environment
+    echo "if test -z \"\${G4INSTALL}\"; then" > /etc/profile.d/geant4.sh
+    echo "export PATH=\"/opt/geant4/bin:\${PATH}\"" >> /etc/profile.d/geant4.sh
+    echo "export LD_LIBRARY_PATH=\"/opt/geant4/lib:\${LD_LIBRARY_PATH}\"" >> /etc/profile.d/geant4.sh
+    echo "export G4INSTALL=\"/opt/geant4\"" >> /etc/profile.d/geant4.sh
+    echo "export G4EXAMPLES=\"/opt/geant4/share/Geant4/examples\"" >> /etc/profile.d/geant4.sh
+    echo "export G4NEUTRONHPDATA=\"/opt/geant4/share/Geant4/data/G4NDL4.7.1\"" >> /etc/profile.d/geant4.sh
+    echo "export G4LEDATA=\"/opt/geant4/share/Geant4/data/G4EMLOW8.6.1\"" >> /etc/profile.d/geant4.sh
+    echo "export G4LEVELGAMMADATA=\"/opt/geant4/share/Geant4/data/PhotonEvaporation6.1\"" >> /etc/profile.d/geant4.sh
+    echo "export G4RADIOACTIVEDATA=\"/opt/geant4/share/Geant4/data/RadioactiveDecay6.1.2\"" >> /etc/profile.d/geant4.sh
+    echo "export G4PARTICLEXSDATA=\"/opt/geant4/share/Geant4/data/G4PARTICLEXS4.1\"" >> /etc/profile.d/geant4.sh
+    echo "export G4PIIDATA=\"/opt/geant4/share/Geant4/data/G4PII1.3\"" >> /etc/profile.d/geant4.sh
+    echo "export G4REALSURFACEDATA=\"/opt/geant4/share/Geant4/data/RealSurface2.2\"" >> /etc/profile.d/geant4.sh
+    echo "export G4SAIDXSDATA=\"/opt/geant4/share/Geant4/data/G4SAIDDATA2.0\"" >> /etc/profile.d/geant4.sh
+    echo "export G4ABLADATA=\"/opt/geant4/share/Geant4/data/G4ABLA3.3\"" >> /etc/profile.d/geant4.sh
+    echo "export G4INCLDATA=\"/opt/geant4/share/Geant4/data/G4INCL1.2\"" >> /etc/profile.d/geant4.sh
+    echo "export G4ENSDFSTATEDATA=\"/opt/geant4/share/Geant4/data/G4ENSDFSTATE3.0\"" >> /etc/profile.d/geant4.sh
+    echo "fi" >> /etc/profile.d/geant4.sh
+
+    # write login script to bring ROOT into path
+    echo "#!/bin/sh" > /etc/profile.d/root.sh
+    echo "if test \"x\${ROOTSYS}\" != \"x/opt/root\"; then" >> /etc/profile.d/root.sh
+    echo "cwd=\$(pwd)" >> /etc/profile.d/root.sh
+    echo "cd /opt/root" >> /etc/profile.d/root.sh
+    echo ". bin/thisroot.sh" >> /etc/profile.d/root.sh
+    echo "cd \"\$cwd\"" >> /etc/profile.d/root.sh
+    echo "unset cwd" >> /etc/profile.d/root.sh
+    echo "fi" >> /etc/profile.d/root.sh
+
+    # Install development tools and dependencies
+    # Install required packages
+    apt-get update
+    apt-get -y upgrade
+    apt-get -y install bzip2 build-essential cmake git qtcreator qtbase5-dev \
+	qt5-qmake wget libexpat1-dev libxerces-c-dev nano emacs vim lz4 zstd \
+	pigz pixz libx11-dev libxpm-dev libxft-dev libxext-dev python3 \
+	libpython3-dev libssl-dev libpcre2-dev libfftw3-dev libgl-dev \
+	libglu1-mesa-dev libmysqlclient-dev uuid-dev python3-numpy libgsl-dev \
+	libreadline-dev libcfitsio-dev libglew-dev libgraphviz-dev \
+	qtwebengine5-dev gfortran zlib1g-dev libftgl-dev libzstd-dev \
+	liblzma-dev libfreetype-dev libafterimage-dev libgtest-dev \
+	libgmock-dev davix-dev libldap2-dev libxml2-dev libkrb5-dev \
+	nlohmann-json3-dev libmysqlclient-dev libgl2ps-dev libxxhash-dev \
+	liblz4-dev libunuran-dev libgif-dev libsqlite3-dev libxrootd-dev \
+	libxrootd-client-dev libtbb-dev libopenblas-dev valgrind kcachegrind \
+	google-perftools libjemalloc-dev
+    # clean up after package install
+    apt-get clean
+
+    # install ROOT from tarball
+    tar -C/ -xpf /tmp-root/root-{{ROOT_BRANCH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst
+    # clean up after ROOT install
+    rm -f /tmp-root/root-{{ROOT_BRANCH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst
+    rmdir /tmp-root
+    # source ROOT login script, so ROOT is available during GEANT 4 build
+    . /etc/profile.d/root.sh
+
+    # Create build and installation directories
+    dir=`mktemp -d`
+    mkdir -p $dir/geant4 /opt/geant4/
+
+    # Download and install Geant4
+    git clone -b {{GEANT4_BRANCH}} https://github.com/LEPP-Heidelberg/geant4.git $dir/geant4
+    mkdir -p $dir/geant4/build
+
+    # Configure and build Geant4
+    cd $dir/geant4/build
+    cmake .. \
+	-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DCMAKE_C_FLAGS="-O2 -g -march=native -fno-omit-frame-pointer -ffast-math -fno-associative-math -ftree-vectorize -fstack-protector-strong -fstack-clash-protection -D_REENTRANT -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=1 -UNDEBUG -fPIE -fPIC" \
+        -DCMAKE_CXX_FLAGS="-O2 -g -march=native -fno-omit-frame-pointer -ffast-math -fno-associative-math -ftree-vectorize -fstack-protector-strong -fstack-clash-protection -D_REENTRANT -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=1 -UNDEBUG -fPIE -fPIC" \
+        -DCMAKE_Fortran_FLAGS="-O2 -g -march=native -fno-omit-frame-pointer -ffast-math -fno-associative-math -ftree-vectorize -fstack-protector-strong -fstack-clash-protection -D_REENTRANT -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=1 -fPIE -fPIC" \
+        -DCMAKE_EXE_LINKER_FLAGS="-O2 -g -pie -Wl,-z,defs -Wl,-z,relro -Wl,-z,now" \
+        -DCMAKE_SHARED_LINKER_FLAGS="-O2 -g -pie -shared -Wl,-z,defs -Wl,-z,relro -Wl,-z,now" \
+        -DCMAKE_INSTALL_PREFIX=/opt/geant4 \
+        -DGEANT4_INSTALL_DATA=ON \
+        -DGEANT4_USE_GDML=ON \
+	-DGEANT4_USE_QT=ON \
+        -DGEANT4_USE_SYSTEM_EXPAT=ON \
+        -DGEANT4_BUILD_MULTITHREADED=ON
+
+    # Build and install
+    make -j$(nproc)
+    make install
+
+    # Cleanup
+    rm -fr $dir
+
+%environment
+
+%runscript
+    # source the required scripts in the right order (and we'll only source
+    # them once because they contain a guarding if statemnent)
+    . /etc/profile.d/root.sh
+    . /etc/profile.d/geant4.sh
+    exec "$@"
+
+%help
+Geant4 built from {{GEANT4_BRANCH}} branch with LEPP patches
+Built with system xerces-c for GDML support
+ROOT built from {{ROOT_BRANCH}} branch is available
+Based on Ubuntu {{UBUNTU_VERSION}}
