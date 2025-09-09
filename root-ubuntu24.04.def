@@ -1,0 +1,65 @@
+Bootstrap: docker
+From: ubuntu:24.04
+
+%post
+    # Install required packages
+    # Install development tools and dependencies
+    apt-get update
+    apt-get -y upgrade
+    apt-get -y install bzip2 lz4 zstd pigz pixz \
+	build-essential cmake git wget libx11-dev \
+	libxpm-dev libxft-dev libxext-dev python3 libpython3-dev libssl-dev \
+	libpcre2-dev libfftw3-dev libgl-dev libglu1-mesa-dev \
+	libmysqlclient-dev uuid-dev python3-numpy libgsl-dev libreadline-dev \
+	libcfitsio-dev libglew-dev libgraphviz-dev qtwebengine5-dev gfortran \
+	zlib1g-dev libftgl-dev libzstd-dev liblzma-dev libfreetype-dev \
+	libafterimage-dev libgtest-dev libgmock-dev davix-dev libldap2-dev \
+	libxml2-dev libkrb5-dev nlohmann-json3-dev libmysqlclient-dev \
+	libgl2ps-dev libxxhash-dev liblz4-dev libunuran-dev libgif-dev \
+	libsqlite3-dev libxrootd-dev libxrootd-client-dev libtbb-dev \
+	libopenblas-dev 
+    apt-get clean
+
+    # set up build dir and check out sources
+    dir=`mktemp -d`
+    mkdir $dir/src
+    git clone https://github.com/root-project/root.git $dir/src/root
+    mkdir $dir/src/root/builddir
+
+    # configure with cmake
+    cd $dir/src/root/builddir
+    cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+	    -DCMAKE_INSTALL_PREFIX=/opt/root \
+	    -DCMAKE_C_COMPILER=gcc \
+	    -DCMAKE_CXX_COMPILER=g++ \
+	    -DCMAKE_Fortran_COMPILER=gfortran \
+	    -DCMAKE_C_FLAGS="-O2 -g -fno-omit-frame-pointer -ffast-math -fno-associative-math -ftree-vectorize -fstack-protector-strong -fstack-clash-protection -D_REENTRANT -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -fPIE -fPIC" \
+	    -DCMAKE_CXX_FLAGS="-O2 -g -fno-omit-frame-pointer -ffast-math -fno-associative-math -ftree-vectorize -fstack-protector-strong -fstack-clash-protection -D_REENTRANT -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -fPIE -fPIC" \
+	    -DCMAKE_Fortran_FLAGS="-O2 -g -fno-omit-frame-pointer -ffast-math -fno-associative-math -ftree-vectorize -fstack-protector-strong -fstack-clash-protection -D_REENTRANT -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -fPIE -fPIC" \
+	    -DCMAKE_EXE_LINKER_FLAGS="-O2 -g -pie -Wl,-z,defs -Wl,-z,relro -Wl,-z,now" \
+	    -DCMAKE_SHARED_LINKER_FLAGS="-O2 -g -pie -shared -Wl,-z,defs -Wl,-z,relro -Wl,-z,now" \
+	    -DCMAKE_CXX_STANDARD=17 \
+	    -Dall=ON -Dcuda=OFF -Dcudnn=OFF -Dtmva-gpu=OFF -Dtesting=ON -Dsoversion=ON \
+	    -Droofit=ON -Dunuran=ON -Dbuiltin-freetype=OFF \
+	    -Dshadowpw=ON -Dpython_version=3 -Doracle=OFF \
+	    -Dfortran=ON -Dvc=ON -Dbuiltin-afterimage=OFF -Dbuiltin_zeromq=ON \
+	    -Dbuiltin_cppzmq=OFF -Dbuiltin_gtest=OFF -Dbuiltin-pcre=OFF \
+	    -Dbuiltin-zlib=OFF -Dbuiltin-lzma=OFF -Dbuiltin-zstd=OFF \
+	    -Dbuiltin-ftgl=OFF -Dbuiltin-glew=OFF -Ddavix=ON \
+	    -Dbuiltin_vc=ON -Dvmc=OFF -Dmemstat=OFF -Druntime_cxxmodules=OFF -Dalien=OFF
+    make -j $(nproc)
+    make install
+    cd
+
+    # clean up
+    rm -fr $dir
+
+%files
+
+%environment
+
+%runscript
+    exec "$@"
+
+%help
+ROOT
