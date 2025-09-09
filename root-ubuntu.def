@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: ubuntu:24.04
+From: ubuntu:{{UBUNTU_VERSION}}
 
 %post
     # Install required packages
@@ -23,7 +23,7 @@ From: ubuntu:24.04
     # set up build dir and check out sources
     dir=`mktemp -d`
     mkdir $dir/src
-    git clone https://github.com/root-project/root.git $dir/src/root
+    git clone -b {{ROOT_BRANCH}} https://github.com/root-project/root.git $dir/src/root
     mkdir $dir/src/root/builddir
 
     # configure with cmake
@@ -62,4 +62,4 @@ From: ubuntu:24.04
     exec "$@"
 
 %help
-ROOT
+ROOT built from {{ROOT_BRANCH}} branch for Ubuntu {{UBUNTU_VERSION}}
