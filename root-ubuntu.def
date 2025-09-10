@@ -24,6 +24,8 @@ From: ubuntu:{{UBUNTU_VERSION}}
     dir=`mktemp -d`
     mkdir $dir/src
     git clone -b {{ROOT_BRANCH}} https://github.com/root-project/root.git $dir/src/root
+    cd $dir/src/root
+    git checkout {{ROOT_BRANCH_HASH}}
     mkdir $dir/src/root/builddir
 
     # configure with cmake
@@ -57,9 +59,12 @@ From: ubuntu:{{UBUNTU_VERSION}}
 %files
 
 %environment
+    export UBUNTU_VERSION={{UBUNTU_VERSION}}
+    export ROOT_BRANCH={{ROOT_BRANCH}}
+    export ROOT_BRANCH_HASH={{ROOT_BRANCH_HASH}}
 
 %runscript
     exec "$@"
 
 %help
-ROOT built from {{ROOT_BRANCH}} branch for Ubuntu {{UBUNTU_VERSION}}
+ROOT built from {{ROOT_BRANCH}} branch ({{ROOT_BRANCH_HASH}}) for Ubuntu {{UBUNTU_VERSION}}

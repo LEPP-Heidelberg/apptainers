@@ -3,7 +3,7 @@ From: ubuntu:{{UBUNTU_VERSION}}
 
 %files
     # files to copy into container
-    root-{{ROOT_BRANCH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst /tmp-root/root-{{ROOT_BRANCH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst
+    root-{{ROOT_BRANCH_HASH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst /tmp-root/root-{{ROOT_BRANCH_HASH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst
 
 %post
     # write login script for Geant 4 to set up environment
@@ -28,11 +28,17 @@ From: ubuntu:{{UBUNTU_VERSION}}
     # write login script to bring ROOT into path
     echo "#!/bin/sh" > /etc/profile.d/root.sh
     echo "if test \"x\${ROOTSYS}\" != \"x/opt/root\"; then" >> /etc/profile.d/root.sh
-    echo "cwd=\$(pwd)" >> /etc/profile.d/root.sh
-    echo "cd /opt/root" >> /etc/profile.d/root.sh
-    echo ". bin/thisroot.sh" >> /etc/profile.d/root.sh
-    echo "cd \"\$cwd\"" >> /etc/profile.d/root.sh
-    echo "unset cwd" >> /etc/profile.d/root.sh
+    echo "export ROOTSYS=/opt/root" >> /etc/profile.d/root.sh
+    echo "export CLING_STANDARD_PCH=none" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$PATH\"; then export PATH=\"\$ROOTSYS/bin:\$PATH\"; else export PATH=\"\$ROOTSYS/bin\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$LD_LIBRARY_PATH\"; then export LD_LIBRARY_PATH=\"\$ROOTSYS/lib:\$LD_LIBRARY_PATH\"; else export LD_LIBRARY_PATH=\"\$ROOTSYS/lib\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$DYLD_LIBRARY_PATH\"; then export DYLD_LIBRARY_PATH=\"\$ROOTSYS/lib:\$DYLD_LIBRARY_PATH\"; else export DYLD_LIBRARY_PATH=\"\$ROOTSYS/lib\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$SHLIB_PATH\"; then export SHLIB_PATH=\"\$ROOTSYS/lib:\$SHLIB_PATH\"; else export SHLIB_PATH=\"\$ROOTSYS/lib\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$LIBPATH\"; then export LIBPATH=\"\$ROOTSYS/lib:\$LIBPATH\"; else export LIBPATH=\"\$ROOTSYS/lib\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$PYTHONPATH\"; then export PYTHONPATH=\"\$ROOTSYS/lib:\$PYTHONPATH\"; else export PYTHONPATH=\"\$ROOTSYS/lib\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$CMAKE_PREFIX_PATH\"; then export CMAKE_PREFIX_PATH=\"\$ROOTSYS/bin:\$CMAKE_PREFIX_PATH\"; else export CMAKE_PREFIX_PATH=\"\$ROOTSYS/bin\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$JUPYTER_PATH\"; then export JUPYTER_PATH=\"\$ROOTSYS/etc/notebook:\$JUPYTER_PATH\"; else export JUPYTER_PATH=\"\$ROOTSYS/etc/notebook\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$JUPYTER_CONFIG_PATH\"; then export JUPYTER_CONFIG_PATH=\"\$ROOTSYS/etc/notebook:\$JUPYTER_CONFIG_PATH\"; else export JUPYTER_CONFIG_PATH=\"\$ROOTSYS/etc/notebook\"; fi" >> /etc/profile.d/root.sh
     echo "fi" >> /etc/profile.d/root.sh
 
     # Install development tools and dependencies
@@ -56,9 +62,9 @@ From: ubuntu:{{UBUNTU_VERSION}}
     apt-get clean
 
     # install ROOT from tarball
-    tar -C/ -xpf /tmp-root/root-{{ROOT_BRANCH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst
+    tar -C/ -xpf /tmp-root/root-{{ROOT_BRANCH_HASH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst
     # clean up after ROOT install
-    rm -f /tmp-root/root-{{ROOT_BRANCH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst
+    rm -f /tmp-root/root-{{ROOT_BRANCH_HASH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst
     rmdir /tmp-root
     # source ROOT login script, so ROOT is available during GEANT 4 build
     . /etc/profile.d/root.sh
@@ -69,6 +75,8 @@ From: ubuntu:{{UBUNTU_VERSION}}
 
     # Download and install Geant4
     git clone -b {{GEANT4_BRANCH}} https://github.com/LEPP-Heidelberg/geant4.git $dir/geant4
+    cd $dir/geant4
+    git checkout {{GEANT4_BRANCH_HASH}}
     mkdir -p $dir/geant4/build
 
     # Configure and build Geant4
@@ -95,16 +103,21 @@ From: ubuntu:{{UBUNTU_VERSION}}
     rm -fr $dir
 
 %environment
-
-%runscript
+    export UBUNTU_VERSION={{UBUNTU_VERSION}}
+    export ROOT_BRANCH={{ROOT_BRANCH}}
+    export ROOT_BRANCH_HASH={{ROOT_BRANCH_HASH}}
+    export GEANT4_BRANCH={{GEANT4_BRANCH}}
+    export GEANT4_BRANCH_HASH={{GEANT4_BRANCH_HASH}}
     # source the required scripts in the right order (and we'll only source
     # them once because they contain a guarding if statemnent)
     . /etc/profile.d/root.sh
     . /etc/profile.d/geant4.sh
+
+%runscript
     exec "$@"
 
 %help
-Geant4 built from {{GEANT4_BRANCH}} branch with LEPP patches
+Geant4 built from {{GEANT4_BRANCH}} branch with LEPP patches ({{GEANT4_BRANCH_HASH}})
 Built with system xerces-c for GDML support
-ROOT built from {{ROOT_BRANCH}} branch is available
+ROOT built from {{ROOT_BRANCH}} branch is available ({{ROOT_BRANCH_HASH}})
 Based on Ubuntu {{UBUNTU_VERSION}}
