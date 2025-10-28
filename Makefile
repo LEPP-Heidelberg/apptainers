@@ -17,7 +17,7 @@ GEANT4_BRANCH_HASH=2149aef8008b2e34f79898be75d2c9d66c41f77f
 all: $(GEANT4_BRANCH)-root-$(ROOT_BRANCH)-ubuntu$(UBUNTU_VERSION).sif
 
 clean:
-	rm *~
+	rm -f *~
 	rm -f root-*-ubuntu*.sif
 distclean: clean
 	rm -f root-*-ubuntu*.tar.zst geant4*.sif
