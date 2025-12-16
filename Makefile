@@ -10,7 +10,7 @@ GEANT4_BRANCH_HASH=$(word 1,$(shell git ls-remote https://github.com/LEPP-Heidel
 # default is to build against a known GEANT 4 version as identified below; if you
 # move branches or want the latest on that branch, comment out the next
 # uncommented line, and take the hash from the resulting file
-GEANT4_BRANCH_HASH=2149aef8008b2e34f79898be75d2c9d66c41f77f
+# GEANT4_BRANCH_HASH=2149aef8008b2e34f79898be75d2c9d66c41f77f
 
 
 
