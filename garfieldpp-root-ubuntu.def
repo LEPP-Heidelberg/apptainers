@@ -1,0 +1,113 @@
+Bootstrap: docker
+From: ubuntu:{{UBUNTU_VERSION}}
+
+%files
+    # files to copy into container
+    root-{{ROOT_BRANCH_HASH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst /tmp-root/root-{{ROOT_BRANCH_HASH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst
+
+%post
+    # write login script for Garfield++ to set up environment (Garfield++
+    # installs its own setup script, which sets GARFIELD_INSTALL,
+    # HEED_DATABASE, LD_LIBRARY_PATH, CMAKE_PREFIX_PATH and PYTHONPATH)
+    echo "if test -z \"\${GARFIELD_INSTALL}\"; then" > /etc/profile.d/garfield.sh
+    echo ". /opt/garfieldpp/share/Garfield/setupGarfield.sh" >> /etc/profile.d/garfield.sh
+    echo "fi" >> /etc/profile.d/garfield.sh
+
+    # write login script to bring ROOT into path
+    echo "#!/bin/sh" > /etc/profile.d/root.sh
+    echo "if test \"x\${ROOTSYS}\" != \"x/opt/root\"; then" >> /etc/profile.d/root.sh
+    echo "export ROOTSYS=/opt/root" >> /etc/profile.d/root.sh
+    echo "export CLING_STANDARD_PCH=none" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$PATH\"; then export PATH=\"\$ROOTSYS/bin:\$PATH\"; else export PATH=\"\$ROOTSYS/bin\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$LD_LIBRARY_PATH\"; then export LD_LIBRARY_PATH=\"\$ROOTSYS/lib:\$LD_LIBRARY_PATH\"; else export LD_LIBRARY_PATH=\"\$ROOTSYS/lib\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$DYLD_LIBRARY_PATH\"; then export DYLD_LIBRARY_PATH=\"\$ROOTSYS/lib:\$DYLD_LIBRARY_PATH\"; else export DYLD_LIBRARY_PATH=\"\$ROOTSYS/lib\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$SHLIB_PATH\"; then export SHLIB_PATH=\"\$ROOTSYS/lib:\$SHLIB_PATH\"; else export SHLIB_PATH=\"\$ROOTSYS/lib\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$LIBPATH\"; then export LIBPATH=\"\$ROOTSYS/lib:\$LIBPATH\"; else export LIBPATH=\"\$ROOTSYS/lib\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$PYTHONPATH\"; then export PYTHONPATH=\"\$ROOTSYS/lib:\$PYTHONPATH\"; else export PYTHONPATH=\"\$ROOTSYS/lib\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$CMAKE_PREFIX_PATH\"; then export CMAKE_PREFIX_PATH=\"\$ROOTSYS/bin:\$CMAKE_PREFIX_PATH\"; else export CMAKE_PREFIX_PATH=\"\$ROOTSYS/bin\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$JUPYTER_PATH\"; then export JUPYTER_PATH=\"\$ROOTSYS/etc/notebook:\$JUPYTER_PATH\"; else export JUPYTER_PATH=\"\$ROOTSYS/etc/notebook\"; fi" >> /etc/profile.d/root.sh
+    echo "if test -n \"\$JUPYTER_CONFIG_PATH\"; then export JUPYTER_CONFIG_PATH=\"\$ROOTSYS/etc/notebook:\$JUPYTER_CONFIG_PATH\"; else export JUPYTER_CONFIG_PATH=\"\$ROOTSYS/etc/notebook\"; fi" >> /etc/profile.d/root.sh
+    echo "fi" >> /etc/profile.d/root.sh
+
+    # Install development tools and dependencies
+    # Install required packages (ROOT runtime dependencies, Eigen for
+    # Garfield++ linear algebra, gfortran for Degrade, plus convenience tools)
+    apt-get update
+    apt-get -y upgrade
+    apt-get -y install bzip2 build-essential cmake git wget nano emacs vim \
+	lz4 zstd pigz pixz libx11-dev libxpm-dev libxft-dev libxext-dev \
+	python3 libpython3-dev libssl-dev libpcre2-dev libfftw3-dev libgl-dev \
+	libglu1-mesa-dev libmysqlclient-dev uuid-dev python3-numpy libgsl-dev \
+	libreadline-dev libcfitsio-dev libglew-dev libgraphviz-dev \
+	qtwebengine5-dev gfortran zlib1g-dev libftgl-dev libzstd-dev \
+	liblzma-dev libfreetype-dev libafterimage-dev libgtest-dev \
+	libgmock-dev davix-dev libldap2-dev libxml2-dev libkrb5-dev \
+	nlohmann-json3-dev libgl2ps-dev libxxhash-dev liblz4-dev \
+	libunuran-dev libgif-dev libsqlite3-dev libxrootd-dev \
+	libxrootd-client-dev libtbb-dev libopenblas-dev libeigen3-dev \
+	valgrind kcachegrind google-perftools libjemalloc-dev
+    # clean up after package install
+    apt-get clean
+
+    # install ROOT from tarball
+    tar -C/ -xpf /tmp-root/root-{{ROOT_BRANCH_HASH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst
+    # clean up after ROOT install
+    rm -f /tmp-root/root-{{ROOT_BRANCH_HASH}}-ubuntu{{UBUNTU_VERSION}}.tar.zst
+    rmdir /tmp-root
+    # source ROOT login script, so ROOT is available during Garfield++ build
+    . /etc/profile.d/root.sh
+
+    # Create build and installation directories
+    dir=`mktemp -d`
+    mkdir -p $dir/garfieldpp /opt/garfieldpp/
+
+    # Download Garfield++
+    git clone -b {{GARFIELD_BRANCH}} https://gitlab.cern.ch/garfield/garfieldpp.git $dir/garfieldpp
+    cd $dir/garfieldpp
+    git checkout {{GARFIELD_BRANCH_HASH}}
+    mkdir -p $dir/garfieldpp/build
+
+    # Configure Garfield++ (C++ standard is taken over from ROOT; GSL is not
+    # needed for C++ >= 17)
+    cd $dir/garfieldpp/build
+    cmake .. \
+	-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DCMAKE_C_FLAGS="-O2 -g -march=native -fno-omit-frame-pointer -ffast-math -fno-associative-math -ftree-vectorize -fstack-protector-strong -fstack-clash-protection -D_REENTRANT -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=1 -UNDEBUG -fPIE -fPIC" \
+        -DCMAKE_CXX_FLAGS="-O2 -g -march=native -fno-omit-frame-pointer -ffast-math -fno-associative-math -ftree-vectorize -fstack-protector-strong -fstack-clash-protection -D_REENTRANT -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=1 -UNDEBUG -fPIE -fPIC" \
+        -DCMAKE_Fortran_FLAGS="-O2 -g -march=native -fno-omit-frame-pointer -ffast-math -fno-associative-math -ftree-vectorize -fstack-protector-strong -fstack-clash-protection -D_REENTRANT -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=1 -fPIE -fPIC" \
+        -DCMAKE_EXE_LINKER_FLAGS="-O2 -g -pie -Wl,-z,defs -Wl,-z,relro -Wl,-z,now" \
+        -DCMAKE_SHARED_LINKER_FLAGS="-O2 -g -pie -shared -Wl,-z,defs -Wl,-z,relro -Wl,-z,now" \
+        -DCMAKE_INSTALL_PREFIX=/opt/garfieldpp \
+        -DGARFIELD_WITH_CUDA=OFF \
+        -DGARFIELD_WITH_DEGRADE=ON \
+        -DGARFIELD_WITH_EIGEN=ON \
+        -DGARFIELD_WITH_EXAMPLES=OFF \
+        -DGARFIELD_WITH_TESTS=OFF
+
+    # Build and install
+    make -j$(nproc)
+    make install
+
+    # Cleanup
+    cd
+    rm -fr $dir
+
+%environment
+    export UBUNTU_VERSION={{UBUNTU_VERSION}}
+    export ROOT_BRANCH={{ROOT_BRANCH}}
+    export ROOT_BRANCH_HASH={{ROOT_BRANCH_HASH}}
+    export GARFIELD_BRANCH={{GARFIELD_BRANCH}}
+    export GARFIELD_BRANCH_HASH={{GARFIELD_BRANCH_HASH}}
+    # source the required scripts in the right order (and we'll only source
+    # them once because they contain a guarding if statement)
+    . /etc/profile.d/root.sh
+    . /etc/profile.d/garfield.sh
+
+%runscript
+    exec "$@"
+
+%help
+Garfield++ built from {{GARFIELD_BRANCH}} branch ({{GARFIELD_BRANCH_HASH}})
+Built with Degrade and Eigen support, without CUDA
+ROOT built from {{ROOT_BRANCH}} branch is available ({{ROOT_BRANCH_HASH}})
+Based on Ubuntu {{UBUNTU_VERSION}}
